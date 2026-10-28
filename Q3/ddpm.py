@@ -110,7 +110,9 @@ class DDPM:
         # Samples the alpha (time-dependent variance set by the scheduler)
         bar_alpha = at_least_ndim(self.bar_alpha[t], x0.dim())
 
-        # TODO: fill in remaining code
+        eps = torch.randn_like(x0) if eps is None else eps
+        xt = bar_alpha.sqrt() * x0 + (1 - bar_alpha).sqrt() * eps
+        return xt, t, eps
 
     def loss(self, x0, condition=None):
         """
@@ -124,9 +126,10 @@ class DDPM:
 
         # generates the condition vector (in our case, the embeddings from video)
         condition_vec = self.model["condition"](condition) if condition is not None else None
-        
-        
-        # TODO fill in 
+        xt, t, eps = self.add_noise(x0)
+        pred = self.model["diffusion"](xt, t, condition_vec)
+        target = eps if self.predict_noise else x0
+        return ((pred - target) ** 2).mean()
 
     def update(self, x0, condition=None, update_ema=True):
         loss = self.loss(x0, condition)
@@ -177,9 +180,20 @@ class DDPM:
             beta = self.beta[t]
 
             pred = model["diffusion"](xt, t_batch, condition_vec)
-            
-            # TODO Fill in next bits of code to implement the reverse-diffusion process.
-            # Note this needs to be able to handle both epsilon and x prediction.
+
+            if self.predict_noise:
+                xt = (xt - beta / (1 - bar_alpha).sqrt() * pred) / alpha.sqrt()
+            else:
+                xt = (
+                    alpha.sqrt() * (1 - bar_alpha_prev) * xt
+                    + beta * bar_alpha_prev.sqrt() * pred
+                ) / (1 - bar_alpha)
+
+            if t > 0:
+                posterior_variance = beta * (1 - bar_alpha_prev) / (1 - bar_alpha)
+                xt = xt + posterior_variance.sqrt() * torch.randn_like(xt)
+            if self.clip_action:
+                xt = xt.clamp(-1, 1)
 
         if record_sampling:
             sample_record.append(xt)

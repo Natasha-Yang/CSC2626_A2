@@ -108,21 +108,14 @@ def evaluate(args, env, dataset, agent, use_ema=True):
                 action_pred = dataset.undo_transform_action(action_pred)
             action_chunk = action_pred[0]
 
-            # Execute the chunk one real env step at a time, replanning once
-            # it's fully consumed (or the episode ends mid-chunk).
-            chunk_reward = 0.0
-            env.step(action_chunk[0])
-            obs, reward, done, info = env.step(act)
-            chunk_reward = reward
-            t += 1
-            if done or t >= args.max_episode_steps:
-                break
-
-            # TODO replace the evaluation above with chunked action-execution
-            # that executes some number of actions defined by args.action_steps.
-            # Note - due to some convention weirdness, you should define the chunk_reward
-            # to be the max reward encountered in a chunk.
-
+            chunk_reward = float("-inf")
+            for action in action_chunk[:args.action_steps]:
+                obs, reward, done, info = env.step(action)
+                chunk_reward = max(chunk_reward, reward)
+                t += 1
+                if done or t >= args.max_episode_steps:
+                    break
+            ep_reward += chunk_reward
 
         rewards.append(ep_reward)
         successes.append(1.0 if ep_reward > 0 else 0.0)
