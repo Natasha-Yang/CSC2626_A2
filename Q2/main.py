@@ -196,6 +196,8 @@ def main():
 
     policy = BallCatchDMPPolicy(dmp, dt=env.dt)
     test_policy(env, policy, eval_episodes=20, render_freq=1)
+    # Evaluation over 20 episodes: -10.277, success%: 0.650
+
 
 
 if __name__ == "__main__":
