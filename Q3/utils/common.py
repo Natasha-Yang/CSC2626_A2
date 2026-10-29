@@ -501,6 +501,14 @@ class RobomimicImageWrapper(gym.Env):
     def get_observation(self, raw_obs=None):
         if raw_obs is None:
             raw_obs = self.env.get_observation()
+        # robomimic >= 0.5 no longer post-processes images inside
+        # env.get_observation(), so frames arrive as raw uint8 HWC; convert
+        # them to the float [0, 1] CHW layout robomimic <= 0.4 returned.
+        import robomimic.utils.obs_utils as ObsUtils
+        raw_obs = dict(raw_obs)
+        for key in self.observation_space.keys():
+            if key.endswith("image") and raw_obs[key].dtype == np.uint8:
+                raw_obs[key] = ObsUtils.process_obs(obs=raw_obs[key], obs_key=key)
         self.render_cache = raw_obs[self.render_obs_key]
         return {key: raw_obs[key] for key in self.observation_space.keys()}
 
